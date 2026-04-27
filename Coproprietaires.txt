@@ -1,3 +1,4 @@
-12;isra;sfari;2531474;1;1524.0;20.0
-13;hiba cherni;allah;41258963;4;235.0;10.0
-14;siwar;sarsra;52365417;2;50.0;10.0
+16;isra;sfari;2531474;1
+17;hiballah ;cherni;14258963;2
+18;siwar;sarsar;89632514;3
+19;amah;hajsalah;22471582;4

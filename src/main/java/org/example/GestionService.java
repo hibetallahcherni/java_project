@@ -4,71 +4,97 @@ import java.util.*;
 
 public class GestionService {
 
-    private List<Coproprietaire> liste = new ArrayList<>();
-    private Map<Integer, Coproprietaire> map = new HashMap<>();
-    private Set<Integer> ids = new HashSet<>();
-    private Set<Integer> appartements = new HashSet<>();
-
+    private List<Coproprietaire> coproList = new ArrayList<>();
+    private List<Appartement> appList = new ArrayList<>();
     private List<Charge> charges = new ArrayList<>();
-    private List<FondsDeTravaux> fonds = new ArrayList<>();
     private List<AppelDeFonds> appels = new ArrayList<>();
     private List<Paiement> paiements = new ArrayList<>();
 
+    private Map<Integer, Coproprietaire> coproMap = new HashMap<>();
+    private Map<Integer, Appartement> appMap = new HashMap<>();
+
+    private int idCopro = 1;
+    private int idApp = 1;
+
     public void charger() throws Exception {
+        coproList = FileManager.loadCopro();
+        appList = FileManager.loadAppartements();
 
-        liste = FileManager.chargerCopro();
-        charges = FileManager.loadCharges();
-        fonds = FileManager.loadFonds();
+        for (Coproprietaire c : coproList) {
+            coproMap.put(c.getId(), c);
+            idCopro = Math.max(idCopro, c.getId() + 1);
+        }
 
-        for (Coproprietaire c : liste) {
-            map.put(c.getId(), c);
-            ids.add(c.getId());
-            appartements.add(c.getAppartement().getNumero());
+        for (Appartement a : appList) {
+            appMap.put(a.getNumero(), a);
+            idApp = Math.max(idApp, a.getId() + 1);
         }
     }
 
-    // ================= COPRO =================
+    // ========= APPARTEMENT =========
 
-    public boolean ajouter(Coproprietaire c) throws Exception {
+    public void ajouterAppartement(int num, double surface, double tantieme) throws Exception {
+        if (appMap.containsKey(num)) {
+            System.out.println("❌ Appartement déjà existe");
+            return;
+        }
 
-        if (ids.contains(c.getId())) return false;
+        Appartement a = new Appartement(idApp++, num, surface, tantieme);
+        appList.add(a);
+        appMap.put(num, a);
 
-        liste.add(c);
-        map.put(c.getId(), c);
-        ids.add(c.getId());
-
-        FileManager.sauvegarderCopro(liste);
-        return true;
+        FileManager.saveAppartements(appList);
     }
 
-    public void afficher() {
-        liste.forEach(System.out::println);
+    public void afficherAppartements() {
+        appList.forEach(System.out::println);
     }
 
-    public Coproprietaire rechercherId(int id) {
-        return map.get(id);
+    // ========= COPRO =========
+
+    public void ajouterCopro(String nom, String prenom, String tel, int numApp) throws Exception {
+
+        if (!appMap.containsKey(numApp)) {
+            System.out.println("❌ Appartement inexistant");
+            return;
+        }
+
+        for (Coproprietaire c : coproList) {
+            if (c.getAppartement().getNumero() == numApp) {
+                System.out.println("❌ Appartement déjà occupé");
+                return;
+            }
+        }
+
+        Coproprietaire c = new Coproprietaire(idCopro++, nom, prenom, tel, appMap.get(numApp));
+
+        coproList.add(c);
+        coproMap.put(c.getId(), c);
+
+        FileManager.saveCopro(coproList);
     }
 
-    public void supprimer(int id) throws Exception {
-        Coproprietaire c = map.get(id);
+    public void afficherCopro() {
+        coproList.forEach(System.out::println);
+    }
 
+    public Coproprietaire findCopro(int id) {
+        return coproMap.get(id);
+    }
+
+    public void supprimerCopro(int id) throws Exception {
+        Coproprietaire c = coproMap.get(id);
         if (c != null) {
-            liste.remove(c);
-            map.remove(id);
-            ids.remove(id);
-
-            FileManager.sauvegarderCopro(liste);
+            coproList.remove(c);
+            coproMap.remove(id);
+            FileManager.saveCopro(coproList);
         }
     }
 
-    public List<Coproprietaire> getListe() {
-        return liste;
-    }
+    // ========= CHARGES =========
 
-    // ================= CHARGES =================
-
-    public void ajouterCharge(Charge c) throws Exception {
-        charges.add(c);
+    public void ajouterCharge(String type, double montant) throws Exception {
+        charges.add(new Charge(charges.size()+1, type, montant, new Date()));
         FileManager.saveCharges(charges);
     }
 
@@ -76,43 +102,21 @@ public class GestionService {
         charges.forEach(System.out::println);
     }
 
-    public double totalCharges() {
-        return charges.stream().mapToDouble(Charge::getMontant).sum();
-    }
+    // ========= APPEL =========
 
-    // ================= FONDS =================
-
-    public void ajouterFonds(FondsDeTravaux f) throws Exception {
-        fonds.add(f);
-        FileManager.saveFonds(fonds);
-    }
-
-    public void afficherFonds() {
-        fonds.forEach(System.out::println);
-    }
-
-    // ================= APPELS =================
-
-    public void genererAppels() {
+    public void genererAppel() {
 
         appels.clear();
 
-        double total = totalCharges();
-        double totalTantiemes = 0;
+        double total = charges.stream().mapToDouble(Charge::getMontant).sum();
 
-        for (Coproprietaire c : liste) {
-            totalTantiemes += c.getAppartement().getTantiemes();
-        }
+        double totalTantieme = appList.stream().mapToDouble(Appartement::getTantiemes).sum();
 
-        for (Coproprietaire c : liste) {
+        for (Coproprietaire c : coproList) {
 
-            AppelDeFonds a = new AppelDeFonds(0, 0, new Date(), c);
+            double part = total * (c.getAppartement().getTantiemes() / totalTantieme);
 
-            double part = a.calculerMontant(total, totalTantiemes);
-
-            a.setMontantTotal(part);
-
-            appels.add(a);
+            appels.add(new AppelDeFonds(0, part, new Date(), c));
         }
     }
 
@@ -120,10 +124,22 @@ public class GestionService {
         appels.forEach(System.out::println);
     }
 
-    // ================= PAIEMENT =================
+    // ========= PAIEMENT =========
 
-    public void ajouterPaiement(Paiement p) throws Exception {
-        paiements.add(p);
+    public void payer(int coproId) throws Exception {
+
+        Coproprietaire c = coproMap.get(coproId);
+
+        if (c == null) return;
+
+        paiements.add(new Paiement(
+                paiements.size()+1,
+                "paid",
+                c,
+                new Date(),
+                "cash"
+        ));
+
         FileManager.savePaiements(paiements);
     }
 
