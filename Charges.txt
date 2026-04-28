@@ -1,0 +1,3 @@
+2;electricite;80.0
+3;water;400.0
+
