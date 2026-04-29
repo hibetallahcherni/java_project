@@ -9,6 +9,7 @@ public class FileManager {
     static String APP = "app.txt";
     static String CHARGE = "charges.txt";
     static String PAY = "paiements.txt";
+    static String FONDS = "fonds.txt";
 
     public static void saveCopro(List<Coproprietaire> list) throws Exception {
         BufferedWriter bw = new BufferedWriter(new FileWriter(COPRO));
@@ -82,5 +83,58 @@ public class FileManager {
             bw.newLine();
         }
         bw.close();
+    }
+    // ===== LOAD CHARGES =====
+    public static List<Charge> loadCharges() throws Exception {
+        List<Charge> list = new ArrayList<>();
+        File f = new File(CHARGE);
+        if (!f.exists()) return list;
+
+        BufferedReader br = new BufferedReader(new FileReader(f));
+        String l;
+
+        while ((l = br.readLine()) != null) {
+            String[] p = l.split(";");
+            list.add(new Charge(
+                    Integer.parseInt(p[0]),
+                    p[1],
+                    Double.parseDouble(p[2]),
+                    new Date()
+            ));
+        }
+        br.close();
+        return list;
+    }
+    // ===== SAVE + LOAD FONDS =====
+
+    public static void saveFonds(List<FondsDeTravaux> list) throws Exception {
+        BufferedWriter bw = new BufferedWriter(new FileWriter(FONDS));
+        for (FondsDeTravaux f : list) {
+            bw.write(f.getId()+";"+f.getNom()+";"+f.getMontant()+";"+f.getDescription());
+            bw.newLine();
+        }
+        bw.close();
+    }
+
+    public static List<FondsDeTravaux> loadFonds() throws Exception {
+        List<FondsDeTravaux> list = new ArrayList<>();
+        File f = new File(FONDS);
+        if (!f.exists()) return list;
+
+        BufferedReader br = new BufferedReader(new FileReader(f));
+        String l;
+
+        while ((l = br.readLine()) != null) {
+            String[] p = l.split(";");
+            list.add(new FondsDeTravaux(
+                    Integer.parseInt(p[0]),
+                    p[1],
+                    new Date(),
+                    Double.parseDouble(p[2]),
+                    p[3]
+            ));
+        }
+        br.close();
+        return list;
     }
 }
