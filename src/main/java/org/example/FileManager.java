@@ -2,14 +2,17 @@ package org.example;
 
 import java.io.*;
 import java.util.*;
+import java.text.SimpleDateFormat;
+
 
 public class FileManager {
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
 
-    static String COPRO   = "Coproprietaires.txt";
-    static String APP     = "app.txt";
-    static String CHARGE  = "charges.txt";
-    static String PAY     = "paiements.txt";
-    static String FONDS   = "fonds.txt";
+    static String COPRO  = "Coproprietaires.txt";
+    static String APP    = "app.txt";
+    static String CHARGE = "charges.txt";
+    static String PAY    = "paiements.txt";
+    static String FONDS  = "fonds.txt";
 
     // ===== APPARTEMENTS =====
     public static void saveAppartements(List<Appartement> list) throws Exception {
@@ -78,11 +81,13 @@ public class FileManager {
         return list;
     }
 
+
     // ===== CHARGES =====
     public static void saveCharges(List<Charge> list) throws Exception {
         BufferedWriter bw = new BufferedWriter(new FileWriter(CHARGE));
         for (Charge c : list) {
-            bw.write(c.getId()+";"+c.getType()+";"+c.getMontant());
+            // تسجيل التاريخ بصيغة مقروءة
+            bw.write(c.getId()+";"+c.getType()+";"+c.getMontant()+";"+sdf.format(c.getDate()));
             bw.newLine();
         }
         bw.close();
@@ -98,11 +103,15 @@ public class FileManager {
         while ((l = br.readLine()) != null) {
             if (l.trim().isEmpty()) continue;
             String[] p = l.split(";");
+            Date date = new Date();
+            if (p.length >= 4) {
+                try { date = sdf.parse(p[3]); } catch (Exception ignored) {}
+            }
             list.add(new Charge(
                     Integer.parseInt(p[0]),
                     p[1],
                     Double.parseDouble(p[2]),
-                    new Date()
+                    date
             ));
         }
         br.close();
