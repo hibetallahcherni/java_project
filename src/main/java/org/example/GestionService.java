@@ -302,24 +302,37 @@ public class GestionService {
 
     // ================= PAIEMENT =================
 
-    public void payer(int coproId) throws Exception {
+    public void payer(int coproId, String status, String mode) throws Exception {
 
         Coproprietaire c = coproMap.get(coproId);
+
+        if (c == null) {
+            for (Coproprietaire cp : coproList) {
+                if (cp.getId() == coproId) {
+                    c = cp;
+                    break;
+                }
+            }
+        }
 
         if (c == null) {
             System.out.println("❌ Copro introuvable");
             return;
         }
 
-        paiements.add(new Paiement(
+        Paiement p = new Paiement(
                 paiements.size() + 1,
-                "paid",
+                status,            // 🔥 now dynamic
                 c,
                 new Date(),
-                "cash"
-        ));
+                mode               // 🔥 now dynamic
+        );
+
+        paiements.add(p);
 
         FileManager.savePaiements(paiements);
+
+        System.out.println("✅ Paiement ajouté");
     }
 
     public void afficherPaiements() {
@@ -331,9 +344,9 @@ public class GestionService {
         for (Paiement p : paiements) {
             if (p.getId() == id) {
 
-                p.setStatus(status);   // paid / not paid
+                p.setStatus(status);
                 p.setMode(mode);
-                p.setDate(new Date()); // update time
+                p.setDate(new Date());
 
                 FileManager.savePaiements(paiements);
 

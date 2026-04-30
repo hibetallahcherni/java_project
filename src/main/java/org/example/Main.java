@@ -194,15 +194,27 @@ public class Main {
     // ================= PAY =================
     static void menuPay(GestionService s, Scanner sc) throws Exception {
 
-        System.out.println("1 Pay 2 Edit 3 Show");
+        System.out.println("1 Add Payment 2 Edit 3 Show");
 
         int c = sc.nextInt();
 
         if (c == 1) {
+
             System.out.print("ID copro: ");
-            s.payer(sc.nextInt());
+            int id = sc.nextInt();
+            sc.nextLine();
+
+            System.out.print("Status (paid/not paid): ");
+            String status = sc.nextLine();
+
+            System.out.print("Mode (cash/card): ");
+            String mode = sc.nextLine();
+
+            s.payer(id, status, mode);
         }
+
         else if (c == 2) {
+
             System.out.print("Payment ID: ");
             int id = sc.nextInt();
             sc.nextLine();
@@ -215,6 +227,9 @@ public class Main {
 
             s.modifierPaiement(id, st, mode);
         }
-        else s.afficherPaiements();
+
+        else if (c == 3) {
+            s.afficherPaiements();
+        }
     }
 }

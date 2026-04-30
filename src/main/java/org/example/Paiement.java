@@ -30,6 +30,9 @@ public class Paiement {
 
     @Override
     public String toString() {
-        return coproprietaire.getNom() + " | " + status + " | " + mode;
-    }
-}
+        return "ID:" + id +
+                " | " + coproprietaire.getNom() +
+                " | " + status +
+                " | " + mode +
+                " | " + date;
+    }}
