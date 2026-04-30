@@ -192,22 +192,29 @@ public class Main {
     }
 
     // ================= PAY =================
-    static void menuPay(GestionService s, Scanner sc) {
+    static void menuPay(GestionService s, Scanner sc) throws Exception {
 
-        try {
+        System.out.println("1 Pay 2 Edit 3 Show");
 
-            System.out.println("1 Pay 2 Show");
+        int c = sc.nextInt();
 
-            int c = sc.nextInt();
-
-            if (c == 1) {
-                System.out.print("ID copro: ");
-                s.payer(sc.nextInt());
-            }
-            else s.afficherPaiements();
-
-        } catch (Exception e) {
-            System.out.println("Erreur Paiement !");
+        if (c == 1) {
+            System.out.print("ID copro: ");
+            s.payer(sc.nextInt());
         }
+        else if (c == 2) {
+            System.out.print("Payment ID: ");
+            int id = sc.nextInt();
+            sc.nextLine();
+
+            System.out.print("Status (paid/not paid): ");
+            String st = sc.nextLine();
+
+            System.out.print("Mode (cash/card): ");
+            String mode = sc.nextLine();
+
+            s.modifierPaiement(id, st, mode);
+        }
+        else s.afficherPaiements();
     }
 }

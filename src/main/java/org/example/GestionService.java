@@ -22,27 +22,30 @@ public class GestionService {
 
         coproList = FileManager.loadCopro();
         appList = FileManager.loadAppartements();
+        charges = FileManager.loadCharges();
+        fonds = FileManager.loadFonds();
 
-        // build map appartement
         for (Appartement a : appList) {
             appMap.put(a.getNumero(), a);
             idApp = Math.max(idApp, a.getId() + 1);
         }
 
-        // FIX: reconnect copro to REAL appartement (with tantieme)
         for (Coproprietaire c : coproList) {
 
-            Appartement realApp = appMap.get(c.getAppartement().getNumero());
+            Appartement real = appMap.get(c.getAppartement().getNumero());
 
-            if (realApp != null) {
-                c.setAppartement(realApp); // 🔥 VERY IMPORTANT
+            if (real != null) {
+                c.setAppartement(real); // ✅ replace fake with real
             }
-
             coproMap.put(c.getId(), c);
+
+            // 🔥 VERY IMPORTANT LINE
             idCopro = Math.max(idCopro, c.getId() + 1);
         }
-    }
 
+
+        paiements = FileManager.loadPaiements(coproMap);
+    }
     // ================= APPARTEMENT =================
 
     public void ajouterAppartement(int num, double surface, double tantieme) throws Exception {
@@ -321,5 +324,24 @@ public class GestionService {
 
     public void afficherPaiements() {
         paiements.forEach(System.out::println);
+    }
+
+    public void modifierPaiement(int id, String status, String mode) throws Exception {
+
+        for (Paiement p : paiements) {
+            if (p.getId() == id) {
+
+                p.setStatus(status);   // paid / not paid
+                p.setMode(mode);
+                p.setDate(new Date()); // update time
+
+                FileManager.savePaiements(paiements);
+
+                System.out.println("✅ Paiement modifié");
+                return;
+            }
+        }
+
+        System.out.println("❌ Paiement introuvable");
     }
 }
