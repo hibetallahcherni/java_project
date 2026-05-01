@@ -357,4 +357,15 @@ public class GestionService {
 
         System.out.println("❌ Paiement introuvable");
     }
+    public List<Coproprietaire> getCoproList() { return coproList; }
+    public List<Appartement> getAppList() { return appList; }
+    public List<Charge> getCharges() { return charges; }
+    public List<Paiement> getPaiements() { return paiements; }
+    public List<AppelDeFonds> getAppels() {
+        return appels;
+    }
+    public List<FondsDeTravaux> getFonds() {
+        return fonds;
+    }
+    private double montant;
 }
