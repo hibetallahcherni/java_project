@@ -5,12 +5,12 @@ import javax.swing.border.*;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.Date;
 import java.util.List;
 
 public class Dashboard extends JFrame {
 
     private GestionService service;
+    private Runnable       onLogout;   // ← callback that re-launches LoginDialog
 
     private CardLayout layout;
     private JPanel center;
@@ -20,17 +20,15 @@ public class Dashboard extends JFrame {
     private DefaultTableModel chargeModel;
     private DefaultTableModel fondsModel;
     private DefaultTableModel payModel;
-    private DefaultTableModel travauxModel;
 
-    // ── stat-card labels (kept as fields so refreshDashboard() can update them)
-    private JLabel statCoproCount, statCoproSub;
-    private JLabel statAppCount,   statAppSub;
-    private JLabel statChargeCount,statChargeSub;
-    private JLabel statFondsCount, statFondsSub;
-    private JLabel statAppelCount, statAppelSub;
-    private JLabel statPayCount,   statPaySub;
-    private JLabel statTravCount,  statTravSub;
-    private JLabel statTotalCount, statTotalSub;
+    // ── stat-card labels
+    private JLabel statCoproCount, statCoproSub, statCoproTrend;
+    private JLabel statAppCount,   statAppSub,   statAppTrend;
+    private JLabel statChargeCount,statChargeSub,statChargeTrend;
+    private JLabel statFondsCount, statFondsSub, statFondsTrend;
+    private JLabel statAppelCount, statAppelSub, statAppelTrend;
+    private JLabel statPayCount,   statPaySub,   statPayTrend;
+    private JLabel statTotalCount, statTotalSub, statTotalTrend;
 
     // bottom status bar
     private JLabel statusBar;
@@ -47,18 +45,27 @@ public class Dashboard extends JFrame {
     private static final Color DANGER     = new Color(239, 68, 68);
     private static final Color WARNING    = new Color(251, 191, 36);
 
+    // ── NEW: logout button colors
+    private static final Color LOGOUT_BG       = new Color(127, 29, 29);
+    private static final Color LOGOUT_BG_HOVER = new Color(185, 28, 28);
+    private static final Color LOGOUT_FG       = new Color(254, 202, 202);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Constructor — now accepts a logout callback
+    // ─────────────────────────────────────────────────────────────────────────
     public Dashboard(GestionService service) {
-        this.service = service;
+        this.service   = service;
+        this.onLogout  = onLogout;
 
         setTitle("Gestion Copropriété");
-        setSize(1300, 750);
+        setSize(1200, 750);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         getContentPane().setBackground(BG_DARK);
 
         setLayout(new BorderLayout());
-        add(createSidebar(), BorderLayout.WEST);
-        add(createCenter(), BorderLayout.CENTER);
+        add(createSidebar(),   BorderLayout.WEST);
+        add(createCenter(),    BorderLayout.CENTER);
         add(createStatusBar(), BorderLayout.SOUTH);
 
         setVisible(true);
@@ -89,6 +96,7 @@ public class Dashboard extends JFrame {
         wrapper.setPreferredSize(new Dimension(220, 0));
         wrapper.setBorder(new MatteBorder(0, 0, 0, 1, new Color(51, 65, 85)));
 
+        // ── Logo / title area
         JPanel logo = new JPanel(new BorderLayout());
         logo.setBackground(BG_SIDEBAR);
         logo.setBorder(new EmptyBorder(20, 18, 20, 18));
@@ -107,6 +115,7 @@ public class Dashboard extends JFrame {
         titleBox.add(sub);
         logo.add(titleBox);
 
+        // ── Nav items
         JPanel nav = new JPanel();
         nav.setLayout(new BoxLayout(nav, BoxLayout.Y_AXIS));
         nav.setBackground(BG_SIDEBAR);
@@ -119,8 +128,7 @@ public class Dashboard extends JFrame {
                 {"Charges",         "💰"},
                 {"Fonds",           "🏦"},
                 {"Appels",          "📋"},
-                {"Paiements",       "💳"},
-                {"Travaux",         "🔧"}
+                {"Paiements",       "💳"}
         };
 
         for (String[] item : items) {
@@ -129,8 +137,61 @@ public class Dashboard extends JFrame {
             nav.add(Box.createRigidArea(new Dimension(0, 4)));
         }
 
-        wrapper.add(logo, BorderLayout.NORTH);
-        wrapper.add(nav, BorderLayout.CENTER);
+        // ── Separator line above logout
+        JPanel sep = new JPanel();
+        sep.setBackground(new Color(51, 65, 85));
+        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        sep.setPreferredSize(new Dimension(0, 1));
+
+        // ── Logout button (pinned to bottom)
+        JButton logoutBtn = new JButton("🚪  Se déconnecter");
+        logoutBtn.setMaximumSize(new Dimension(200, 42));
+        logoutBtn.setPreferredSize(new Dimension(200, 42));
+        logoutBtn.setHorizontalAlignment(SwingConstants.LEFT);
+        logoutBtn.setBorder(new EmptyBorder(10, 14, 10, 14));
+        logoutBtn.setBackground(LOGOUT_BG);
+        logoutBtn.setForeground(LOGOUT_FG);
+        logoutBtn.setFont(new Font("SansSerif", Font.BOLD, 13));
+        logoutBtn.setFocusPainted(false);
+        logoutBtn.setBorderPainted(false);
+        logoutBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        logoutBtn.setOpaque(true);
+
+        logoutBtn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                logoutBtn.setBackground(LOGOUT_BG_HOVER);
+            }
+            public void mouseExited(MouseEvent e) {
+                logoutBtn.setBackground(LOGOUT_BG);
+            }
+        });
+
+        logoutBtn.addActionListener(e -> {
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "Voulez-vous vraiment vous déconnecter ?",
+                    "Déconnexion",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+            if (choice == JOptionPane.YES_OPTION) {
+                dispose();                              // close Dashboard window
+                if (onLogout != null) onLogout.run();  // re-launch LoginDialog
+            }
+        });
+
+        // ── Bottom panel that holds the logout button
+        JPanel bottomNav = new JPanel();
+        bottomNav.setLayout(new BoxLayout(bottomNav, BoxLayout.Y_AXIS));
+        bottomNav.setBackground(BG_SIDEBAR);
+        bottomNav.setBorder(new EmptyBorder(8, 10, 20, 10));
+        bottomNav.add(sep);
+        bottomNav.add(Box.createRigidArea(new Dimension(0, 10)));
+        bottomNav.add(logoutBtn);
+
+        wrapper.add(logo,      BorderLayout.NORTH);
+        wrapper.add(nav,       BorderLayout.CENTER);
+        wrapper.add(bottomNav, BorderLayout.SOUTH);   // ← logout pinned to bottom
         return wrapper;
     }
 
@@ -172,7 +233,6 @@ public class Dashboard extends JFrame {
         center.add(fondsPanel(),     "Fonds");
         center.add(appelPanel(),     "Appels");
         center.add(payPanel(),       "Paiements");
-        center.add(travauxPanel(),   "Travaux");
 
         return center;
     }
@@ -183,14 +243,13 @@ public class Dashboard extends JFrame {
         p.setBackground(BG_DARK);
         p.setBorder(new EmptyBorder(30, 30, 30, 30));
 
-        // ── Header
         JPanel headerRow = new JPanel(new BorderLayout());
         headerRow.setBackground(BG_DARK);
-        headerRow.setBorder(new EmptyBorder(0, 0, 24, 0));
+        headerRow.setBorder(new EmptyBorder(0, 0, 28, 0));
 
-        JLabel title = new JLabel("Tableau de bord");
-        title.setForeground(TEXT_MAIN);
-        title.setFont(new Font("Georgia", Font.BOLD, 26));
+        JLabel titleLbl = new JLabel("Tableau de bord");
+        titleLbl.setForeground(TEXT_MAIN);
+        titleLbl.setFont(new Font("Georgia", Font.BOLD, 26));
 
         JLabel subtitle = new JLabel("Vue d'ensemble de la copropriété");
         subtitle.setForeground(TEXT_MUTED);
@@ -198,138 +257,161 @@ public class Dashboard extends JFrame {
 
         JPanel titleStack = new JPanel(new GridLayout(2, 1, 0, 4));
         titleStack.setBackground(BG_DARK);
-        titleStack.add(title);
+        titleStack.add(titleLbl);
         titleStack.add(subtitle);
         headerRow.add(titleStack, BorderLayout.CENTER);
 
-        // ── 8 stat cards
         JPanel cards = new JPanel(new GridLayout(2, 4, 16, 16));
         cards.setBackground(BG_DARK);
 
-        // Build each card and keep references to count + sub labels
-        JPanel[] c = new JPanel[8];
+        JPanel[] c = new JPanel[7];
 
         c[0] = buildStatCard("Copropriétaires", "👥", ACCENT);
         statCoproCount = getCountLabel(c[0]);
         statCoproSub   = getSubLabel(c[0]);
+        statCoproTrend = getTrendLabel(c[0]);
 
         c[1] = buildStatCard("Appartements", "🏢", ACCENT2);
         statAppCount = getCountLabel(c[1]);
         statAppSub   = getSubLabel(c[1]);
+        statAppTrend = getTrendLabel(c[1]);
 
         c[2] = buildStatCard("Charges", "💰", WARNING);
         statChargeCount = getCountLabel(c[2]);
         statChargeSub   = getSubLabel(c[2]);
+        statChargeTrend = getTrendLabel(c[2]);
 
-        c[3] = buildStatCard("Fonds", "🏦", SUCCESS);
+        c[3] = buildStatCard("Fonds de Travaux", "🏦", SUCCESS);
         statFondsCount = getCountLabel(c[3]);
         statFondsSub   = getSubLabel(c[3]);
+        statFondsTrend = getTrendLabel(c[3]);
 
-        c[4] = buildStatCard("Appels", "📋", ACCENT);
+        c[4] = buildStatCard("Appels de Fonds", "📋", ACCENT);
         statAppelCount = getCountLabel(c[4]);
         statAppelSub   = getSubLabel(c[4]);
+        statAppelTrend = getTrendLabel(c[4]);
 
         c[5] = buildStatCard("Paiements", "💳", ACCENT2);
         statPayCount = getCountLabel(c[5]);
         statPaySub   = getSubLabel(c[5]);
+        statPayTrend = getTrendLabel(c[5]);
 
-        c[6] = buildStatCard("Travaux", "🔧", WARNING);
-        statTravCount = getCountLabel(c[6]);
-        statTravSub   = getSubLabel(c[6]);
-
-        c[7] = buildStatCard("Total charges", "📊", SUCCESS);
-        statTotalCount = getCountLabel(c[7]);
-        statTotalSub   = getSubLabel(c[7]);
+        c[6] = buildStatCard("Total Charges", "📊", DANGER);
+        statTotalCount = getCountLabel(c[6]);
+        statTotalSub   = getSubLabel(c[6]);
+        statTotalTrend = getTrendLabel(c[6]);
 
         for (JPanel card : c) cards.add(card);
+        cards.add(createFillerCard());
 
         p.add(headerRow, BorderLayout.NORTH);
-        p.add(cards, BorderLayout.CENTER);
+        p.add(cards,     BorderLayout.CENTER);
         return p;
     }
 
-    /**
-     * Builds a stat card with:
-     *   – icon + label on top row
-     *   – large count number
-     *   – small muted sub-line
-     *   – colored accent bar at bottom
-     *
-     * The count JLabel is stored at index 0 of the card's client property "countLabel",
-     * and the sub JLabel at "subLabel", so refreshDashboard() can update them.
-     */
+    private JPanel createFillerCard() {
+        JPanel card = new JPanel();
+        card.setBackground(new Color(22, 32, 50));
+        card.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(new Color(30, 41, 59), 1, true),
+                new EmptyBorder(18, 18, 14, 18)
+        ));
+        JLabel hint = new JLabel("+ Module");
+        hint.setForeground(new Color(51, 65, 85));
+        hint.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        hint.setHorizontalAlignment(SwingConstants.CENTER);
+        card.setLayout(new BorderLayout());
+        card.add(hint, BorderLayout.CENTER);
+        return card;
+    }
+
     private JPanel buildStatCard(String name, String icon, Color accent) {
-        JPanel card = new JPanel(new BorderLayout(0, 6));
+        JPanel card = new JPanel(new BorderLayout(0, 0));
         card.setBackground(BG_CARD);
         card.setBorder(BorderFactory.createCompoundBorder(
                 new LineBorder(new Color(51, 65, 85), 1, true),
-                new EmptyBorder(18, 18, 14, 18)
+                new EmptyBorder(16, 18, 12, 18)
         ));
 
-        // Top row: label + icon
         JLabel ico = new JLabel(icon);
-        ico.setFont(new Font("SansSerif", Font.PLAIN, 22));
+        ico.setFont(new Font("SansSerif", Font.PLAIN, 20));
 
-        JLabel lbl = new JLabel(name);
+        JLabel lbl = new JLabel(name.toUpperCase());
         lbl.setForeground(TEXT_MUTED);
-        lbl.setFont(new Font("SansSerif", Font.BOLD, 11));
+        lbl.setFont(new Font("SansSerif", Font.BOLD, 10));
 
         JPanel topRow = new JPanel(new BorderLayout());
         topRow.setBackground(BG_CARD);
         topRow.add(lbl, BorderLayout.WEST);
         topRow.add(ico, BorderLayout.EAST);
 
-        // Count
         JLabel count = new JLabel("–");
-        count.setForeground(accent);
-        count.setFont(new Font("SansSerif", Font.BOLD, 28));
+        count.setForeground(TEXT_MAIN);
+        count.setFont(new Font("SansSerif", Font.BOLD, 30));
 
-        // Sub-line
         JLabel sub = new JLabel(" ");
-        sub.setForeground(new Color(71, 85, 105));
+        sub.setForeground(TEXT_MUTED);
         sub.setFont(new Font("SansSerif", Font.PLAIN, 11));
 
-        JPanel body = new JPanel(new GridLayout(3, 1, 0, 2));
+        JLabel trend = new JLabel(" ");
+        trend.setForeground(accent);
+        trend.setFont(new Font("SansSerif", Font.BOLD, 11));
+
+        JPanel sep = new JPanel();
+        sep.setBackground(new Color(51, 65, 85));
+        sep.setPreferredSize(new Dimension(0, 1));
+        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+
+        JPanel body = new JPanel();
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBackground(BG_CARD);
         body.add(topRow);
+        body.add(Box.createRigidArea(new Dimension(0, 8)));
         body.add(count);
+        body.add(Box.createRigidArea(new Dimension(0, 4)));
         body.add(sub);
+        body.add(Box.createRigidArea(new Dimension(0, 10)));
+        body.add(sep);
+        body.add(Box.createRigidArea(new Dimension(0, 6)));
+        body.add(trend);
 
-        // Accent bar
         JLabel bar = new JLabel();
         bar.setOpaque(true);
         bar.setBackground(accent);
         bar.setPreferredSize(new Dimension(0, 3));
 
         card.add(body, BorderLayout.CENTER);
-        card.add(bar, BorderLayout.SOUTH);
+        card.add(bar,  BorderLayout.SOUTH);
 
-        // Hover effect
-        Color base = BG_CARD;
+        Color base  = BG_CARD;
         Color hover = new Color(38, 52, 74);
-        card.addMouseListener(new MouseAdapter() {
-            public void mouseEntered(MouseEvent e) { card.setBackground(hover); body.setBackground(hover); topRow.setBackground(hover); }
-            public void mouseExited(MouseEvent e)  { card.setBackground(base);  body.setBackground(base);  topRow.setBackground(base); }
-        });
+        MouseAdapter hoverEffect = new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                card.setBackground(hover); body.setBackground(hover);
+                topRow.setBackground(hover);
+            }
+            public void mouseExited(MouseEvent e) {
+                card.setBackground(base); body.setBackground(base);
+                topRow.setBackground(base);
+            }
+        };
+        card.addMouseListener(hoverEffect);
 
-        // Store references so refreshDashboard() can reach them
         card.putClientProperty("countLabel", count);
         card.putClientProperty("subLabel",   sub);
+        card.putClientProperty("trendLabel", trend);
+        card.putClientProperty("accentColor", accent);
         return card;
     }
 
-    /** Retrieve the count JLabel stored inside a stat card. */
-    private JLabel getCountLabel(JPanel card) {
-        return (JLabel) card.getClientProperty("countLabel");
-    }
-    /** Retrieve the sub JLabel stored inside a stat card. */
-    private JLabel getSubLabel(JPanel card) {
-        return (JLabel) card.getClientProperty("subLabel");
-    }
+    private JLabel getCountLabel(JPanel card) { return (JLabel) card.getClientProperty("countLabel"); }
+    private JLabel getSubLabel(JPanel card)   { return (JLabel) card.getClientProperty("subLabel"); }
+    private JLabel getTrendLabel(JPanel card) { return (JLabel) card.getClientProperty("trendLabel"); }
 
     // ===================== HELPER: PANEL BUILDER =====================
     private JPanel buildTablePanel(String title, DefaultTableModel model, String[] cols,
-                                   Runnable onAdd, Runnable onEdit, Runnable onDel, JTable[] tableHolder) {
+                                   Runnable onAdd, Runnable onEdit, Runnable onDel,
+                                   JTable[] tableHolder) {
         model.setColumnIdentifiers(cols);
 
         JTable table = new JTable(model);
@@ -340,13 +422,13 @@ public class Dashboard extends JFrame {
         scroll.setBorder(BorderFactory.createLineBorder(new Color(51, 65, 85)));
         scroll.getViewport().setBackground(new Color(22, 32, 50));
 
-        JButton addBtn  = styledButton("+ Ajouter", SUCCESS);
-        JButton editBtn = styledButton("✎ Modifier", ACCENT);
-        JButton delBtn  = styledButton("✕ Supprimer", DANGER);
+        JButton addBtn  = styledButton("+ Ajouter",    SUCCESS);
+        JButton editBtn = styledButton("✎ Modifier",   ACCENT);
+        JButton delBtn  = styledButton("✕ Supprimer",  DANGER);
 
-        addBtn.addActionListener(e -> onAdd.run());
+        addBtn.addActionListener(e  -> onAdd.run());
         editBtn.addActionListener(e -> onEdit.run());
-        delBtn.addActionListener(e -> onDel.run());
+        delBtn.addActionListener(e  -> onDel.run());
 
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         toolbar.setBackground(BG_CARD);
@@ -365,13 +447,13 @@ public class Dashboard extends JFrame {
 
         JPanel top = new JPanel(new BorderLayout());
         top.setBackground(BG_CARD);
-        top.add(header, BorderLayout.NORTH);
+        top.add(header,  BorderLayout.NORTH);
         top.add(toolbar, BorderLayout.CENTER);
 
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(BG_DARK);
         p.setBorder(new EmptyBorder(20, 20, 20, 20));
-        p.add(top, BorderLayout.NORTH);
+        p.add(top,    BorderLayout.NORTH);
         p.add(scroll, BorderLayout.CENTER);
         return p;
     }
@@ -429,8 +511,8 @@ public class Dashboard extends JFrame {
         form.setBorder(new EmptyBorder(16, 16, 16, 16));
 
         GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(6, 8, 6, 8);
-        gc.anchor = GridBagConstraints.WEST;
+        gc.insets  = new Insets(6, 8, 6, 8);
+        gc.anchor  = GridBagConstraints.WEST;
 
         for (int i = 0; i < labels.length; i++) {
             gc.gridx = 0; gc.gridy = i; gc.fill = GridBagConstraints.NONE;
@@ -450,7 +532,8 @@ public class Dashboard extends JFrame {
 
     // ===================== COPRO =====================
     private JPanel coproPanel() {
-        coproModel = new DefaultTableModel(new String[]{"ID","Nom","Prénom","Téléphone","Appartement"}, 0) {
+        coproModel = new DefaultTableModel(
+                new String[]{"ID","Nom","Prénom","Téléphone","Appartement"}, 0) {
             public boolean isCellEditable(int r, int c) { return false; }
         };
         JTable[] tableHolder = new JTable[1];
@@ -493,12 +576,43 @@ public class Dashboard extends JFrame {
         if (ok) {
             try {
                 int numApp = Integer.parseInt(fApp.getText().trim());
+
+                boolean appExists = service.getAppList().stream()
+                        .anyMatch(a -> a.getNumero() == numApp);
+
+                if (!appExists) {
+                    Object[] options = {"Aller aux Appartements", "Annuler"};
+                    int choice = JOptionPane.showOptionDialog(
+                            this,
+                            "<html><b>Appartement N° " + numApp + " introuvable.</b><br><br>" +
+                                    "Cet appartement n'existe pas dans le système.<br>" +
+                                    "Veuillez d'abord créer l'appartement N° " + numApp + ".",
+                            "Appartement inexistant",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.WARNING_MESSAGE,
+                            null,
+                            options,
+                            options[0]
+                    );
+                    if (choice == 0) {
+                        layout.show(center, "Appartements");
+                        setStatus("Section : Appartements — créez d'abord l'appartement N° " + numApp);
+                    }
+                    return;
+                }
+
                 if (c == null)
-                    service.ajouterCopro(fNom.getText().trim(), fPrenom.getText().trim(), fTel.getText().trim(), numApp);
+                    service.ajouterCopro(fNom.getText().trim(), fPrenom.getText().trim(),
+                            fTel.getText().trim(), numApp);
                 else
-                    service.modifierCopro(id, fNom.getText().trim(), fPrenom.getText().trim(), fTel.getText().trim(), numApp);
+                    service.modifierCopro(id, fNom.getText().trim(), fPrenom.getText().trim(),
+                            fTel.getText().trim(), numApp);
                 refreshAll();
-            } catch (Exception e) { error("Erreur : " + e.getMessage()); }
+            } catch (NumberFormatException nfe) {
+                error("Le numéro d'appartement doit être un entier valide.");
+            } catch (Exception e) {
+                error("Erreur : " + e.getMessage());
+            }
         }
     }
 
@@ -554,7 +668,7 @@ public class Dashboard extends JFrame {
 
         if (ok) {
             try {
-                int num         = Integer.parseInt(fNum.getText().trim());
+                int    num      = Integer.parseInt(fNum.getText().trim());
                 double surface  = Double.parseDouble(fSurface.getText().trim());
                 double tantieme = Double.parseDouble(fTant.getText().trim());
                 if (existingNum == null)
@@ -617,7 +731,7 @@ public class Dashboard extends JFrame {
 
         if (ok) {
             try {
-                String type = fType.getText().trim();
+                String type    = fType.getText().trim();
                 double montant = Double.parseDouble(fMontant.getText().trim());
                 if (id == null)
                     service.ajouterCharge(type, montant);
@@ -630,7 +744,8 @@ public class Dashboard extends JFrame {
 
     // ===================== FONDS =====================
     private JPanel fondsPanel() {
-        fondsModel = new DefaultTableModel(new String[]{"ID","Nom","Montant (DT)","Description"}, 0) {
+        fondsModel = new DefaultTableModel(
+                new String[]{"ID","Nom","Montant (DT)","Description"}, 0) {
             public boolean isCellEditable(int r, int c) { return false; }
         };
         JTable[] tableHolder = new JTable[1];
@@ -715,7 +830,7 @@ public class Dashboard extends JFrame {
 
         JPanel top = new JPanel(new BorderLayout());
         top.setBackground(BG_CARD);
-        top.add(header, BorderLayout.NORTH);
+        top.add(header,  BorderLayout.NORTH);
         top.add(toolbar, BorderLayout.CENTER);
 
         DefaultTableModel appelModel = new DefaultTableModel(
@@ -741,10 +856,10 @@ public class Dashboard extends JFrame {
 
             for (AppelDeFonds a : appels) {
                 Coproprietaire c = a.getCoproprietaire();
-                String nom = c.getNom() + " " + c.getPrenom();
-                int numApp = c.getAppartement().getNumero();
-                double tant = c.getAppartement().getTantiemes();
-                double mont = a.getMontantTotal();
+                String nom    = c.getNom() + " " + c.getPrenom();
+                int    numApp = c.getAppartement().getNumero();
+                double tant   = c.getAppartement().getTantiemes();
+                double mont   = a.getMontantTotal();
                 total += mont;
                 appelModel.addRow(new Object[]{
                         a.getId(), nom, numApp,
@@ -754,7 +869,8 @@ public class Dashboard extends JFrame {
                 });
             }
 
-            summaryLabel.setText(String.format("  Total : %.2f DT  |  %d copropriétaire(s)", total, appels.size()));
+            summaryLabel.setText(String.format(
+                    "  Total : %.2f DT  |  %d copropriétaire(s)", total, appels.size()));
             refreshAll();
         });
 
@@ -762,15 +878,16 @@ public class Dashboard extends JFrame {
         scroll.setBorder(BorderFactory.createLineBorder(new Color(51, 65, 85)));
         scroll.getViewport().setBackground(new Color(22, 32, 50));
 
-        p.add(top, BorderLayout.NORTH);
-        p.add(scroll, BorderLayout.CENTER);
+        p.add(top,          BorderLayout.NORTH);
+        p.add(scroll,       BorderLayout.CENTER);
         p.add(summaryLabel, BorderLayout.SOUTH);
         return p;
     }
 
     // ===================== PAIEMENTS =====================
     private JPanel payPanel() {
-        payModel = new DefaultTableModel(new String[]{"ID","Copropriétaire","Statut","Mode","Date"}, 0) {
+        payModel = new DefaultTableModel(
+                new String[]{"ID","Copropriétaire","Statut","Mode","Date"}, 0) {
             public boolean isCellEditable(int r, int c) { return false; }
         };
         JTable[] tableHolder = new JTable[1];
@@ -819,8 +936,8 @@ public class Dashboard extends JFrame {
         form.setBackground(BG_CARD);
         form.setBorder(new EmptyBorder(16, 16, 16, 16));
         GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(6, 8, 6, 8);
-        gc.anchor = GridBagConstraints.WEST;
+        gc.insets  = new Insets(6, 8, 6, 8);
+        gc.anchor  = GridBagConstraints.WEST;
 
         if (id == null) {
             gc.gridx = 0; gc.gridy = 0; form.add(formLabel("Copropriétaire :"), gc);
@@ -847,8 +964,8 @@ public class Dashboard extends JFrame {
                 String statut = (String) cbStatut.getSelectedItem();
                 String mode   = (String) cbMode.getSelectedItem();
                 if (id == null) {
-                    String sel = (String) cbCopro.getSelectedItem();
-                    int coproId = Integer.parseInt(sel.split(" - ")[0].trim());
+                    String sel    = (String) cbCopro.getSelectedItem();
+                    int    coproId = Integer.parseInt(sel.split(" - ")[0].trim());
                     service.payer(coproId, statut, mode);
                 } else {
                     service.modifierPaiement(id, statut, mode);
@@ -858,81 +975,16 @@ public class Dashboard extends JFrame {
         }
     }
 
-    // ===================== TRAVAUX =====================
-    private JPanel travauxPanel() {
-        travauxModel = new DefaultTableModel(new String[]{"ID","Nom","Montant (DT)","Description"}, 0) {
-            public boolean isCellEditable(int r, int c) { return false; }
-        };
-        JTable[] tableHolder = new JTable[1];
-
-        return buildTablePanel("Travaux (Fonds)", travauxModel,
-                new String[]{"ID","Nom","Montant (DT)","Description"},
-                () -> travauxForm(null, tableHolder[0]),
-                () -> {
-                    int r = tableHolder[0].getSelectedRow();
-                    if (r == -1) { warn("Sélectionnez une ligne."); return; }
-                    int id = (int) travauxModel.getValueAt(r, 0);
-                    travauxForm(id, tableHolder[0]);
-                },
-                () -> {
-                    int r = tableHolder[0].getSelectedRow();
-                    if (r == -1) { warn("Sélectionnez une ligne."); return; }
-                    if (confirm("Supprimer ce fonds de travaux ?")) {
-                        int id = (int) travauxModel.getValueAt(r, 0);
-                        try { service.supprimerFonds(id); refreshAll(); }
-                        catch (Exception ex) { error(ex.getMessage()); }
-                    }
-                },
-                tableHolder
-        );
-    }
-
-    private void travauxForm(Integer id, JTable table) {
-        JTextField fNom     = styledField("");
-        JTextField fMontant = styledField("");
-        JTextField fDesc    = styledField("");
-
-        if (id != null) {
-            for (FondsDeTravaux f : service.getFonds()) {
-                if (f.getId() == id) {
-                    fNom.setText(f.getNom());
-                    fMontant.setText(String.valueOf(f.getMontant()));
-                    fDesc.setText(f.getDescription());
-                    break;
-                }
-            }
-        }
-
-        boolean ok = showFormDialog(
-                id == null ? "Ajouter Travaux" : "Modifier Travaux",
-                new String[]{"Nom :", "Montant (DT) :", "Description :"},
-                new JTextField[]{fNom, fMontant, fDesc}
-        );
-
-        if (ok) {
-            try {
-                String nom  = fNom.getText().trim();
-                double mont = Double.parseDouble(fMontant.getText().trim());
-                String desc = fDesc.getText().trim();
-                if (id == null)
-                    service.ajouterFonds(nom, mont, desc);
-                else
-                    service.modifierFonds(id, nom, mont, desc);
-                refreshAll();
-            } catch (Exception e) { error("Erreur : " + e.getMessage()); }
-        }
-    }
-
     // ===================== REFRESH ALL =====================
     private void refreshAll() {
-        // ── Copropriétaires
+        // Copropriétaires
         coproModel.setRowCount(0);
         List<Coproprietaire> copros = service.getCoproList();
         for (Coproprietaire c : copros)
             coproModel.addRow(new Object[]{c.getId(), c.getNom(), c.getPrenom(),
                     c.getTelephone(), c.getAppartement().getNumero()});
 
-        // ── Appartements
+        // Appartements
         appModel.setRowCount(0);
         List<Appartement> apps = service.getAppList();
         for (Appartement a : apps)
@@ -940,7 +992,7 @@ public class Dashboard extends JFrame {
                     String.format("%.2f", a.getSurface()),
                     String.format("%.2f", a.getTantiemes())});
 
-        // ── Charges
+        // Charges
         chargeModel.setRowCount(0);
         List<Charge> charges = service.getCharges();
         double totalCharges = 0;
@@ -950,7 +1002,7 @@ public class Dashboard extends JFrame {
                     String.format("%.2f", c.getMontant())});
         }
 
-        // ── Fonds
+        // Fonds
         fondsModel.setRowCount(0);
         List<FondsDeTravaux> fonds = service.getFonds();
         double totalFonds = 0;
@@ -960,39 +1012,30 @@ public class Dashboard extends JFrame {
                     String.format("%.2f", f.getMontant()), f.getDescription()});
         }
 
-        // ── Paiements
+        // Paiements
         payModel.setRowCount(0);
         List<Paiement> paiements = service.getPaiements();
         long notPaid = paiements.stream()
                 .filter(p -> "not paid".equalsIgnoreCase(p.getStatus())).count();
+        long paid = paiements.size() - notPaid;
         for (Paiement pay : paiements)
             payModel.addRow(new Object[]{pay.getId(),
                     pay.getCoproprietaire().getNom() + " " + pay.getCoproprietaire().getPrenom(),
                     pay.getStatus(), pay.getMode(), pay.getDate().toString()});
 
-        // ── Travaux (same data as fonds)
-        travauxModel.setRowCount(0);
-        for (FondsDeTravaux f : fonds)
-            travauxModel.addRow(new Object[]{f.getId(), f.getNom(),
-                    String.format("%.2f", f.getMontant()), f.getDescription()});
-
-        // ── Appels count
+        // Appels
         List<AppelDeFonds> appels = service.getAppels();
 
-        // ── Update dashboard stat cards
+        // Update stat cards
         refreshDashboard(copros, apps, charges, totalCharges,
-                fonds, totalFonds, appels, paiements, notPaid);
+                fonds, totalFonds, appels, paiements, paid, notPaid);
 
-        // ── Status bar
+        // Status bar
         setStatus(String.format(
                 "%d copropriétaires  |  %d appartements  |  %d charges  |  %d paiements",
                 copros.size(), apps.size(), charges.size(), paiements.size()));
     }
 
-    /**
-     * Updates all 8 stat-card labels with live data.
-     * Called from refreshAll() – no service calls here, everything is passed in.
-     */
     private void refreshDashboard(
             List<Coproprietaire> copros,
             List<Appartement>    apps,
@@ -1002,44 +1045,61 @@ public class Dashboard extends JFrame {
             double               totalFonds,
             List<AppelDeFonds>   appels,
             List<Paiement>       paiements,
+            long                 paid,
             long                 notPaid) {
 
         // Copropriétaires
         statCoproCount.setText(String.valueOf(copros.size()));
-        statCoproSub.setText(copros.isEmpty() ? "aucun enregistré"
-                : "enregistré" + (copros.size() > 1 ? "s" : ""));
+        statCoproSub.setText(copros.isEmpty() ? "Aucun enregistré" : "Résidents actifs");
+        statCoproTrend.setText(copros.isEmpty() ? "" : "● Actif");
 
         // Appartements
+        int occupes = (int) apps.stream()
+                .filter(a -> copros.stream()
+                        .anyMatch(c -> c.getAppartement().getNumero() == a.getNumero()))
+                .count();
         statAppCount.setText(String.valueOf(apps.size()));
-        statAppSub.setText(apps.isEmpty() ? "aucun" : "unité" + (apps.size() > 1 ? "s" : "") + " au total");
+        statAppSub.setText(apps.isEmpty() ? "Aucun appartement"
+                : occupes + " occupé(s) / " + apps.size());
+        statAppTrend.setText(apps.isEmpty() ? ""
+                : occupes == apps.size() ? "▲ Complet"
+                : "◌ " + (apps.size() - occupes) + " vacant(s)");
 
         // Charges
         statChargeCount.setText(String.valueOf(charges.size()));
-        statChargeSub.setText(charges.isEmpty() ? "aucune charge"
+        statChargeSub.setText(charges.isEmpty() ? "Aucune charge"
                 : String.format("%.2f DT au total", totalCharges));
+        statChargeTrend.setText(charges.isEmpty() ? ""
+                : "▲ " + charges.size() + " enregistrée(s)");
 
         // Fonds
         statFondsCount.setText(String.valueOf(fonds.size()));
-        statFondsSub.setText(fonds.isEmpty() ? "aucun fonds"
+        statFondsSub.setText(fonds.isEmpty() ? "Aucun fonds"
                 : String.format("%.2f DT disponibles", totalFonds));
+        statFondsTrend.setText(fonds.isEmpty() ? "" : "● " + fonds.size() + " fonds actifs");
 
         // Appels
         statAppelCount.setText(String.valueOf(appels.size()));
-        statAppelSub.setText(appels.isEmpty() ? "aucun appel généré" : "dernier appel généré");
+        statAppelSub.setText(appels.isEmpty() ? "Aucun appel généré"
+                : appels.size() + " appel(s) émis");
+        statAppelTrend.setText(appels.isEmpty() ? "" : "▲ Dernier appel généré");
 
         // Paiements
         statPayCount.setText(String.valueOf(paiements.size()));
-        statPaySub.setText(notPaid > 0
-                ? notPaid + " en attente"
-                : (paiements.isEmpty() ? "aucun paiement" : "tous réglés"));
-
-        // Travaux (fonds)
-        statTravCount.setText(String.valueOf(fonds.size()));
-        statTravSub.setText(fonds.isEmpty() ? "aucun fonds alloué" : "fonds alloués");
+        statPaySub.setText(notPaid > 0 ? notPaid + " en attente"
+                : paiements.isEmpty() ? "Aucun paiement" : "Tous réglés ✓");
+        statPayTrend.setForeground(notPaid > 0 ? DANGER : SUCCESS);
+        statPayTrend.setText(paiements.isEmpty() ? ""
+                : notPaid > 0 ? "▼ " + notPaid + " impayé(s)"
+                : "▲ " + paid + " payé(s)");
 
         // Total charges
         statTotalCount.setText(String.format("%.0f DT", totalCharges));
-        statTotalSub.setText("toutes charges confondues");
+        statTotalSub.setText(charges.isEmpty() ? "Aucune donnée" : "Toutes charges confondues");
+        statTotalTrend.setText(totalCharges > 0
+                ? String.format("▲ Moy. %.0f DT/charge",
+                charges.isEmpty() ? 0 : totalCharges / charges.size())
+                : "");
     }
 
     // ===================== HELPERS =====================
